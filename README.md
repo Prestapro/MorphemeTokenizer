@@ -75,37 +75,61 @@ When a word isn't found directly in the dictionary, the tokenizer tries 7 fallba
 | Vocab size (with char fallback) | 32,236 |
 | Typical text coverage | 70–80% (rest → char fallback) |
 
-## Comparison with other tokenizers
+### Three levels of tokenization
+
+Tokenizers work at different granularity levels. Most tools operate at only one level:
+
+```
+Level 1 — Word:     "Перепрограммировать" → 1 token (whole word)
+                    NLTK, SpaCy, razdel, Gensim
+
+Level 2 — Subword:  "Перепрограммировать" → 8 tokens (statistical fragments)
+                    tiktoken (GPT-4), SentencePiece, BERT WordPiece
+
+Level 3 — Morpheme: "Перепрограммировать" → 5 tokens (linguistic morphemes)
+                    Morpheme Tokenizer  ← you are here
+```
+
+Word-level tokenizers (NLTK, SpaCy) don't decompose words at all — vocabulary explodes with inflected forms. Subword tokenizers (BPE) decompose statistically — fragments have no linguistic meaning. **Morpheme Tokenizer is the only tool that decomposes into linguistically meaningful units with type labels.**
 
 ### Live benchmark
 
 Input: `Перепрограммировать запрограммированный компьютер непросто`
 
-| Tokenizer | Tokens | Output |
-|-----------|--------|--------|
-| **Morpheme Tokenizer** | **13** | `P:пере R:программ S:ир S:ова E:ть` · `P:за R:программ S:ир S:ова S:нн E:ый` · `R:компьютер` · `R:непросто` |
-| GPT-4 (tiktoken) | 22 | `Пер` `еп` `р` `ограм` `м` `иров` `ать` `зап` `р` `ограм` `м` `иров` `анны` `й` `комп` `ью` `тер` `н` `еп` `р` `ост` `о` |
-| BERT multilingual | 19 | `Пер` `##еп` `##рог` `##рам` `##мир` `##овать` `за` `##про` `##гра` `##м` `##мир` `##ован` `##ный` `комп` `##ью` `##тер` `не` `##прос` `##то` |
-| razdel (word-level) | 4 | `Перепрограммировать` `запрограммированный` `компьютер` `непросто` |
-| pymorphy3 (lemma) | 4 | `перепрограммировать [INFN]` `запрограммировать [PRTF]` `компьютер [NOUN]` `непросто [ADVB]` |
+| Tokenizer | Level | Tokens | Output |
+|-----------|-------|--------|--------|
+| **Morpheme Tokenizer** | Morpheme | **13** | `P:пере R:программ S:ир S:ова E:ть` · `P:за R:программ S:ир S:ова S:нн E:ый` · `R:компьютер` · `R:непросто` |
+| GPT-4 (tiktoken) | Subword | 22 | `Пер` `еп` `р` `ограм` `м` `иров` `ать` `зап` `р` `ограм` `м` `иров` `анны` `й` `комп` `ью` `тер` `н` `еп` `р` `ост` `о` |
+| BERT multilingual | Subword | 19 | `Пер` `##еп` `##рог` `##рам` `##мир` `##овать` `за` `##про` `##гра` `##м` `##мир` `##ован` `##ный` `комп` `##ью` `##тер` `не` `##прос` `##то` |
+| SpaCy (`ru_core_news_sm`) | Word | 4 | `Перепрограммировать` `запрограммированный` `компьютер` `непросто` |
+| NLTK (TreebankWord) | Word | 4 | `Перепрограммировать` `запрограммированный` `компьютер` `непросто` |
+| razdel | Word | 4 | `Перепрограммировать` `запрограммированный` `компьютер` `непросто` |
+| pymorphy3 | Lemma | 4 | `перепрограммировать [INFN]` `запрограммировать [PRTF]` `компьютер [NOUN]` `непросто [ADVB]` |
+| Gensim (Phrases) | Word+bigrams | 4 | Same as word-level (no bigrams in this input) |
 
-Key observation: GPT-4 splits `программ` into 4 fragments (`р` + `ограм` + `м` + `иров`) — destroying the root. Morpheme Tokenizer keeps `R:программ` intact across both words, enabling **embedding sharing** between related forms.
+Key observation: GPT-4 splits `программ` into 4 fragments (`р` + `ограм` + `м` + `иров`) — destroying the root. Word-level tools keep the whole word but can't decompose it. **Only Morpheme Tokenizer preserves the root `R:программ` as a reusable semantic unit.**
 
 ### Feature comparison
 
-| | **Morpheme Tokenizer** | **tiktoken (GPT-4)** | **SentencePiece** | **BERT WordPiece** | **pymorphy3** | **Mystem** |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Approach** | Dictionary + cascade | BPE (statistical) | BPE / Unigram | WordPiece (statistical) | Grammar rules | Statistical + rules |
-| **Morpheme segmentation** | ✅ root/prefix/suffix/ending | ❌ | ❌ | ❌ | ❌ | ⚠️ stem + flex |
-| **Morpheme type labels** | ✅ `R:` `P:` `S:` `E:` | ❌ | ❌ | ❌ | POS tags only | POS tags only |
-| **Root sharing** | ✅ same root → same token | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Russian dictionary** | 100K (Tikhonov) | — | — | — | 400K (OpenCorpora) | ~300K |
-| **Lemmatization** | ✅ via pymorphy3 | ❌ | ❌ | ❌ | ✅ native | ✅ native |
-| **Typo tolerance** | ✅ edit distance 1 | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Multilingual** | ❌ Russian + Latin fallback | ✅ | ✅ | ✅ | ❌ Russian | ❌ Russian |
-| **Vocab size** | 32K | 100K | 32–64K | 30–120K | — | — |
-| **Speed** | ~50K tok/s | ~1M tok/s | ~1M tok/s | ~500K tok/s | ~100K tok/s | ~500K tok/s |
-| **License** | MIT | MIT | Apache-2.0 | Apache-2.0 | MIT | Proprietary |
+| | **Morpheme Tokenizer** | **tiktoken (GPT-4)** | **SentencePiece** | **BERT WordPiece** | **SpaCy** | **NLTK** | **pymorphy3** | **Mystem** |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Level** | Morpheme | Subword | Subword | Subword | Word | Word | Lemma | Lemma |
+| **Approach** | Dictionary + cascade | BPE (statistical) | BPE / Unigram | WordPiece | Rules + model | Regex / rules | Grammar rules | Statistical + rules |
+| **Morpheme segmentation** | ✅ root/prefix/suffix/ending | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ stem + flex |
+| **Morpheme type labels** | ✅ `R:` `P:` `S:` `E:` | ❌ | ❌ | ❌ | ❌ | ❌ | POS tags only | POS tags only |
+| **Root sharing** | ✅ same root → same token | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Handles OOV words** | ✅ char fallback | ✅ BPE | ✅ BPE | ✅ `[UNK]` | ✅ | ✅ | ✅ | ✅ |
+| **POS tagging** | ⚠️ via pymorphy3 | ❌ | ❌ | ❌ | ✅ native | ❌ | ✅ native | ✅ native |
+| **NER** | ❌ | ❌ | ❌ | ❌ | ✅ native | ❌ | ❌ | ❌ |
+| **Dependency parsing** | ❌ | ❌ | ❌ | ❌ | ✅ native | ❌ | ❌ | ❌ |
+| **Bigram/collocation** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Russian dictionary** | 100K (Tikhonov) | — | — | — | model-based | — | 400K (OpenCorpora) | ~300K |
+| **Lemmatization** | ✅ via pymorphy3 | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ native | ✅ native |
+| **Typo tolerance** | ✅ edit distance 1 | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Multilingual** | ❌ Russian + Latin fallback | ✅ | ✅ | ✅ | ✅ (75+ langs) | ✅ | ❌ Russian | ❌ Russian |
+| **Vocab size** | 32K | 100K | 32–64K | 30–120K | word-level | word-level | — | — |
+| **Speed** | ~50K tok/s | ~1M tok/s | ~1M tok/s | ~500K tok/s | ~100K tok/s | ~500K tok/s | ~100K tok/s | ~500K tok/s |
+| **License** | MIT | MIT | Apache-2.0 | Apache-2.0 | MIT | Apache-2.0 | MIT | Proprietary |
 
 ### Why morpheme-level matters
 
