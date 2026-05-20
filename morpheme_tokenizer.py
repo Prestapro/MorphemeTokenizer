@@ -21,7 +21,7 @@ Token types:
     [SPACE]          — word boundary
 
 Usage:
-    from engine.training.morpheme_tokenizer import MorphemeTokenizer
+    from morpheme_tokenizer import MorphemeTokenizer
     tok = MorphemeTokenizer.from_tikhonov("data/tikhonov_morphemes.json")
     tokens = tok.tokenize("программирование на Python")
     # → ['ROOT:программ', 'SUF:ир', 'SUF:ова', 'SUF:ни', 'END:е',
@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 
@@ -238,7 +238,10 @@ class MorphemeTokenizer:
         
         bpe_tokenizer = None
         if bpe_dir and not char_fallback:
-            from engine.training.kg_bpe_tokenizer import KGBPETokenizer
+            try:
+                from kg_bpe_tokenizer import KGBPETokenizer
+            except ImportError:
+                raise ImportError("KGBPETokenizer not found. Use char_fallback=True instead.")
             bpe_tokenizer = KGBPETokenizer.load(bpe_dir)
         
         # Inject high-frequency function words that Tikhonov omits
