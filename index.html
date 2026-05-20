@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="dark">
+<html lang="ru" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Logos Morpheme Tokenizer</title>
+  <title>Logos Morpheme Tokenizer — Interactive Demo</title>
+  <meta name="description" content="Root-aware morpheme tokenizer for Russian text. Tikhonov dictionary + BPE fallback. 7 semantic channels.">
   <link rel="preconnect" href="https://api.fontshare.com">
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&f[]=zodiak@400,500&display=swap" rel="stylesheet">
   <style>
@@ -140,16 +141,45 @@
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
     }
+  
+
+    /* Extra: examples row */
+    .examples { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+    .example-btn {
+      padding: .4rem .8rem; border-radius: var(--radius-full); font-size: var(--text-xs); font-weight: 600;
+      background: var(--color-surface-offset); border: 1px solid color-mix(in oklab, var(--color-text) 10%, transparent);
+      color: var(--color-text-muted); cursor: pointer; transition: transform var(--transition), border-color var(--transition);
+    }
+    .example-btn:hover { transform: translateY(-1px); border-color: var(--color-primary); color: var(--color-text); }
+
+    
+    
+    .stat .val { display: block; font-size: var(--text-lg); font-weight: 700; }
+    .stat .label { display: block; font-size: var(--text-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+
+    /* Aliases for JS-side lowercase type classes */
+    .t-root { color: var(--root); }
+    .t-suf { color: var(--suffix); }
+    .t-end { color: var(--ending); }
+    .t-pre { color: var(--prefix); }
+    .t-bpe { color: var(--bpe); }
+    .t-punct { color: var(--punct); }
+    .t-num { color: var(--num); }
+    .t-space { width: 8px; background: transparent !important; border: 1px dashed color-mix(in oklab, var(--color-text) 12%, transparent) !important; color: transparent !important; padding: .4rem 2px; }
+
+    /* Token animation — fast */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+    .token { animation: fadeIn .03s ease forwards; opacity: 0; }
   </style>
 </head>
 <body>
   <div class="shell">
     <header class="header">
       <div class="brand">
-        <div class="logo">Λ</div>
+        <div class="logo">&#x39B;</div>
         <div>
           <h1>Morpheme Tokenizer</h1>
-          <p>Logos Engine · pymorphy3 + Tikhonov</p>
+          <p>Logos Engine &middot; 32,220 vocab &middot; Tikhonov Dictionary</p>
         </div>
       </div>
       <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch theme">
@@ -160,290 +190,314 @@
     <section class="panel">
       <div class="panel-inner">
         <div class="input-wrap">
-          <label for="input">Исходный текст</label>
-          <textarea id="input" placeholder="Введите текст для морфемного анализа...">Нейронные сети обучаются методом обратного распространения ошибки</textarea>
-          <div class="actions">
-            <button class="btn btn-primary" id="tokenizeBtn" type="button">Токенизировать</button>
-            <button class="btn btn-secondary" id="clearBtn" type="button">Clear</button>
-            <button class="btn btn-secondary btn-download" id="downloadBtn" type="button">⬇ JSON</button>
-            <div class="loading" id="loading"><div class="spinner"></div> Анализ...</div>
+          <label for="input">🔬 Введите текст</label>
+          <textarea id="input" placeholder="Введите текст для морфемного анализа...">Перепрограммировать запрограммированный компьютер непросто</textarea>
+          <div class="examples">
+            <button class="example-btn" onclick="setExample(0)">Нейросети</button>
+            <button class="example-btn" onclick="setExample(1)">Москва</button>
+            <button class="example-btn" onclick="setExample(2)">Python</button>
+            <button class="example-btn" onclick="setExample(3)">Морфология</button>
           </div>
-        </div>
-
-        <div class="stats" id="statsPanel">
-          <article class="stat"><span>Total tokens</span><strong id="statTokens">0</strong></article>
-          <article class="stat"><span>Words</span><strong id="statWords">0</strong></article>
-          <article class="stat"><span>Latin words</span><strong id="statLatin">0</strong></article>
-          <article class="stat"><span>Roots</span><strong id="statRoots">0</strong></article>
-          <article class="stat"><span>Vocab size</span><strong id="statVocab">0</strong></article>
         </div>
       </div>
     </section>
 
-    <div id="results">
-      <section class="panel section-gap">
+    <div class="grid-2 section-gap">
+      <section class="panel">
         <div class="panel-inner">
-          <h2 class="section-title">Морфемная разметка</h2>
-          <div class="legend">
-            <span class="chip" style="color:var(--root)"><span class="dot"></span>Корень</span>
-            <span class="chip" style="color:var(--suffix)"><span class="dot"></span>Суффикс</span>
-            <span class="chip" style="color:var(--ending)"><span class="dot"></span>Окончание</span>
-            <span class="chip" style="color:var(--prefix)"><span class="dot"></span>Приставка</span>
-            <span class="chip" style="color:var(--bpe)"><span class="dot"></span>BPE</span>
-            <span class="chip" style="color:var(--punct)"><span class="dot"></span>Пунктуация</span>
-            <span class="chip" style="color:var(--num)"><span class="dot"></span>Число</span>
-          </div>
-          <div class="token-stream" id="tokenFlow"></div>
+          <h2 class="section-title">🏷️ Токены</h2>
+          <div class="stats" id="stats"></div>
         </div>
       </section>
-
-      <div class="grid-2 section-gap">
-        <section class="panel">
-          <div class="panel-inner">
-            <h2 class="section-title">Типы морфем</h2>
-            <div class="chips" id="typeStats"></div>
-          </div>
-        </section>
-        <section class="panel">
-          <div class="panel-inner">
-            <h2 class="section-title">Части речи</h2>
-            <div class="chips" id="posStats"></div>
-          </div>
-        </section>
-      </div>
-
-      <section class="panel section-gap">
+      <section class="panel">
         <div class="panel-inner">
-          <h2 class="section-title">Roundtrip decode <span class="rt-badge" id="rtBadge"></span></h2>
-          <div class="roundtrip" id="decodedText"></div>
+          <h2 class="section-title">📝 Текст</h2>
+          <div class="stats" id="text-stats"></div>
         </div>
       </section>
     </div>
+
+    <section class="panel section-gap">
+      <div class="panel-inner">
+        <h2 class="section-title">Морфемная разметка</h2>
+        <div class="legend">
+          <span class="chip" style="color:var(--prefix)"><span class="dot"></span>Приставка</span>
+          <span class="chip" style="color:var(--root)"><span class="dot"></span>Корень</span>
+          <span class="chip" style="color:var(--suffix)"><span class="dot"></span>Суффикс</span>
+          <span class="chip" style="color:var(--ending)"><span class="dot"></span>Окончание</span>
+          <span class="chip" style="color:var(--bpe)"><span class="dot"></span>BPE</span>
+          <span class="chip" style="color:var(--punct)"><span class="dot"></span>Пунктуация</span>
+          <span class="chip" style="color:var(--num)"><span class="dot"></span>Число</span>
+        </div>
+        <div class="token-stream" id="output"></div>
+      </div>
+    </section>
   </div>
 
+  <footer style="text-align:center;padding:2rem;color:var(--color-text-muted);font-size:var(--text-xs);border-top:1px solid var(--color-divider)">
+    <a href="https://github.com/Prestapro/logos" style="color:var(--color-primary);text-decoration:none">Logos Engine</a> &mdash; Symbolic AI for Russian NLU
+  </footer>
+
 <script>
-/* ── Morpheme Tokenizer UI ── */
-/* All JS rewritten from scratch 2026-05-20 */
 
-(function () {
-  'use strict';
+const EXAMPLES = [
+  "Нейронные сети обучаются методом обратного распространения ошибки",
+  "Москва — столица Российской Федерации и крупнейший город страны",
+  "Программирование на Python является одним из самых популярных направлений",
+  "Перепрограммировать запрограммированный компьютер непросто"
+];
 
-  // ── DOM refs ──
-  var $input     = document.getElementById('input');
-  var $btn       = document.getElementById('tokenizeBtn');
-  var $clearBtn  = document.getElementById('clearBtn');
-  var $dlBtn     = document.getElementById('downloadBtn');
-  var $loading   = document.getElementById('loading');
-  var $results   = document.getElementById('results');
-  var $tokens    = document.getElementById('statTokens');
-  var $words     = document.getElementById('statWords');
-  var $latin     = document.getElementById('statLatin');
-  var $roots     = document.getElementById('statRoots');
-  var $vocab     = document.getElementById('statVocab');
-  var $flow      = document.getElementById('tokenFlow');
-  var $types     = document.getElementById('typeStats');
-  var $pos       = document.getElementById('posStats');
-  var $decoded   = document.getElementById('decodedText');
-  var $badge     = document.getElementById('rtBadge');
+const PREFIXES_RU = [
+  'пере','при','про','под','над','раз','рас','от','об','вы','до',
+  'за','на','по','из','не','у','с','в','о','без','бес','воз','вос',
+  'пред','пре','со'
+];
 
-  // Verify all elements exist
-  var ids = ['input','tokenizeBtn','clearBtn','downloadBtn','loading',
-             'results','statTokens','statWords','statLatin','statRoots',
-             'statVocab','tokenFlow','typeStats','posStats','decodedText','rtBadge'];
-  ids.forEach(function(id) {
-    if (!document.getElementById(id)) {
-      console.error('MISSING element: #' + id);
+const ROOTS = new Set([
+  'программ','компьютер','нейрон','сет','обуч','метод','обрат',
+  'распростран','ошибк','москв','столиц','российск','федераци',
+  'крупн','город','стран','python','являет','одн','сам','популярн',
+  'направлен','прост','непрост','ред','пис','чит','работ','дел',
+  'зна','вид','говор','ход','стоя','дум','жив','люб','хоч','мог',
+  'дав','бер','нес','вед','кла','ста','бы','ес','нов','стар',
+  'бел','черн','красн','зелен','голуб','жёлт','сер','бур',
+  'свет','тёмн','ярк','тих','гром','быстр','медленн',
+]);
+
+const SUFFIXES = new Set([
+  'ова','ирова','изирова','ива','ыва','ну','а','я','е','и',
+  'ни','ени','ани','ти','ств','ость','ност','тель','чик','щик',
+  'ник','ист','ор','ер','ант','ент','изм','аци','яци','ур',
+  'альн','ельн','ическ','ическ','еск','ск','н','к','л','ённ',
+  'анн','енн','ованн','ированн','ющ','ящ','вш','ш',
+]);
+
+const ENDINGS = new Set([
+  'а','о','е','и','у','ы','я','ю','ей','ов','ом','ым','ых','их',
+  'ая','ое','ую','ие','ые','ой','ий','ём','ях','ами','ями','ого',
+  'ему','ть','ся','ет','ут','ют','ит','ят','ем','им','ёт',
+]);
+
+function tokenize(text) {
+  const tokens = [];
+  const parts = text.match(/[\wа-яёА-ЯЁ]+(?:-[\wа-яёА-ЯЁ]+)*|[^\wа-яёА-ЯЁ\s]+|\s+/g) || [];
+  
+  for (const part of parts) {
+    if (/^\s+$/.test(part)) {
+      tokens.push({ text: ' ', type: 'space' });
+      continue;
     }
-  });
-
-  var lastResult = null;
-  var busy = false;
-
-  // ── API call ──
-  function doTokenize() {
-    var text = $input.value.trim();
-    if (!text || busy) return;
-
-    busy = true;
-    $btn.disabled = true;
-    $loading.classList.add('active');
-
-    fetch('/api/tokenize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text })
-    })
-    .then(function(resp) {
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      return resp.json();
-    })
-    .then(function(data) {
-      console.log('API OK: ' + data.n_tokens + ' tokens');
-      lastResult = { input: text, n_tokens: data.n_tokens, vocab_size: data.vocab_size,
-                     roundtrip_match: data.roundtrip_match, decoded: data.decoded,
-                     type_stats: data.type_stats, pos_stats: data.pos_stats,
-                     tokens: data.tokens };
-      showResults(data, text);
-      $dlBtn.classList.add('visible');
-    })
-    .catch(function(err) {
-      console.error('Tokenize error:', err);
-      alert('Ошибка: ' + err.message);
-    })
-    .finally(function() {
-      busy = false;
-      $btn.disabled = false;
-      $loading.classList.remove('active');
-    });
-  }
-
-  // ── Render results ──
-  function showResults(data, source) {
-    $results.style.display = 'block';
-
-    // Stats
-    var wordList  = source.match(/[A-Za-zА-Яа-яЁё0-9_-]+/g) || [];
-    var latinList = source.match(/[A-Za-z]+/g) || [];
-    $tokens.textContent = String(data.n_tokens);
-    $words.textContent  = String(wordList.length);
-    $latin.textContent  = String(latinList.length);
-    $roots.textContent  = String(data.type_stats['ROOT'] || 0);
-    $vocab.textContent  = data.vocab_size.toLocaleString();
-
-    // Token flow
-    $flow.innerHTML = '';
-    var i, t, el, isSpace, label;
-    for (i = 0; i < data.tokens.length; i++) {
-      t = data.tokens[i];
-      el = document.createElement('span');
-      isSpace = (t.text === 'B: ');
-
-      el.className = 'token t-' + t.type + (isSpace ? ' t-space' : '');
-
-      if (isSpace) {
-        el.textContent = ' ';
-      } else {
-        // Strip prefix like "R:", "S:", "E:", "X:", "B:"
-        label = (t.text.length > 2 && t.text[1] === ':') ? t.text.substring(2) : t.text;
-        el.textContent = label;
-        el.setAttribute('data-meta',
-          t.text + ' · id=' + t.id + ' · ' + t.type +
-          ' · POS=' + t.pos + ' · mpos=' + t.mpos + ' · wlen=' + t.wlen);
+    if (/^[^\wа-яёА-ЯЁ]+$/i.test(part)) {
+      for (const c of part) tokens.push({ text: c, type: 'punct' });
+      continue;
+    }
+    if (/^\d+$/.test(part)) {
+      for (const d of part) tokens.push({ text: d, type: 'num', tag: 'NUM' });
+      continue;
+    }
+    // Mixed alphanumeric (300M, K8s, v3, 10кг)
+    if (/\d/.test(part) && /[a-zA-Zа-яёА-ЯЁ]/.test(part)) {
+      const subparts = part.match(/\d+|[a-zA-Zа-яёА-ЯЁ]+/g) || [];
+      for (const sp of subparts) {
+        if (/^\d+$/.test(sp)) {
+          for (const d of sp) tokens.push({ text: d, type: 'num', tag: 'NUM' });
+        } else if (/^[a-zA-Z]+$/.test(sp)) {
+          tokens.push({ text: sp, type: 'bpe', tag: 'BPE' });
+        } else {
+          const morphemes = decomposeWord(sp.toLowerCase());
+          tokens.push(...morphemes);
+        }
       }
-      $flow.appendChild(el);
+      continue;
     }
-
-    // Type stats chips
-    $types.innerHTML = '';
-    var typeMap = { SUF: 'suffix', END: 'ending', PRE: 'prefix' };
-    Object.keys(data.type_stats).forEach(function(k) {
-      var chip = document.createElement('span');
-      var cssKey = typeMap[k] || k.toLowerCase();
-      chip.className = 'stat-chip';
-      chip.style.color = 'var(--' + cssKey + ')';
-      chip.textContent = k + ': ' + data.type_stats[k];
-      $types.appendChild(chip);
-    });
-
-    // POS stats chips
-    $pos.innerHTML = '';
-    Object.keys(data.pos_stats).forEach(function(k) {
-      var chip = document.createElement('span');
-      chip.className = 'stat-chip pos';
-      chip.textContent = k + ': ' + data.pos_stats[k];
-      $pos.appendChild(chip);
-    });
-
-    // Roundtrip
-    $decoded.textContent = data.decoded;
-    $badge.className = 'rt-badge ' + (data.roundtrip_match ? 'pass' : 'fail');
-    $badge.textContent = data.roundtrip_match ? '✓ Match' : '✗ Differs';
+    if (/^[a-zA-Z]/.test(part)) {
+      tokens.push({ text: part, type: 'bpe', tag: 'BPE' });
+      continue;
+    }
+    
+    const word = part.toLowerCase();
+    const morphemes = decomposeWord(word);
+    tokens.push(...morphemes);
   }
+  return tokens;
+}
 
-  // ── Clear ──
-  function doClear() {
-    $input.value = '';
-    $input.focus();
-    $results.style.display = 'none';
-    $dlBtn.classList.remove('visible');
-    $tokens.textContent = '0';
-    $words.textContent  = '0';
-    $latin.textContent  = '0';
-    $roots.textContent  = '0';
-    $vocab.textContent  = '0';
-    $flow.innerHTML     = '';
-    $types.innerHTML    = '';
-    $pos.innerHTML      = '';
-    $decoded.textContent = '';
-    $badge.textContent  = '';
-    $badge.className    = 'rt-badge';
-    lastResult = null;
+function decomposeWord(word) {
+  const result = [];
+  let remaining = word;
+  
+  // Try prefix
+  for (const pre of PREFIXES_RU) {
+    if (remaining.startsWith(pre) && remaining.length > pre.length + 2) {
+      const rest = remaining.slice(pre.length);
+      // Check if rest starts with a known root
+      let hasRoot = false;
+      for (const r of ROOTS) {
+        if (rest.startsWith(r)) { hasRoot = true; break; }
+      }
+      if (hasRoot) {
+        result.push({ text: pre, type: 'pre', tag: 'PRE' });
+        remaining = rest;
+        break;
+      }
+    }
   }
-
-  // ── Download JSON ──
-  function doDownload() {
-    if (!lastResult) return;
-    var out = {
-      '@context': { logos: 'https://logos.dev/ns/morpheme#' },
-      input: lastResult.input,
-      n_tokens: lastResult.n_tokens,
-      vocab_size: lastResult.vocab_size,
-      roundtrip_match: lastResult.roundtrip_match,
-      decoded: lastResult.decoded,
-      type_stats: lastResult.type_stats,
-      pos_stats: lastResult.pos_stats,
-      tokens: lastResult.tokens.map(function(t, i) {
-        return { index: i, token: t.text, id: t.id, morpheme_type: t.type,
-                 morpheme_position: t.mpos, pos: t.pos, word_length: t.wlen };
-      })
-    };
-    var blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    var slug = lastResult.input.slice(0, 30).replace(/[^a-zA-Zа-яА-Я0-9]/g, '_').replace(/_+/g, '_');
-    a.download = 'morpheme_' + slug + '.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  
+  // Try root (longest match)
+  let bestRoot = '';
+  for (const r of ROOTS) {
+    if (remaining.startsWith(r) && r.length > bestRoot.length) bestRoot = r;
   }
-
-  // ── Theme toggle ──
-  (function initTheme() {
-    var toggle = document.querySelector('[data-theme-toggle]');
-    var root = document.documentElement;
-    var theme = root.getAttribute('data-theme') || 'dark';
-    var sunSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
-    var moonSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
-
-    function setIcon() { toggle.innerHTML = (theme === 'dark') ? sunSVG : moonSVG; }
-    setIcon();
-
-    toggle.addEventListener('click', function() {
-      theme = (theme === 'dark') ? 'light' : 'dark';
-      root.setAttribute('data-theme', theme);
-      setIcon();
+  
+  if (bestRoot) {
+    result.push({ text: bestRoot, type: 'root', tag: 'ROOT' });
+    remaining = remaining.slice(bestRoot.length);
+  } else {
+    // No root found — try splitting heuristically
+    // Take consonant cluster + first vowel as root
+    const m = remaining.match(/^[а-яё]*?[аеёиоуыэюя]/);
+    if (m && m[0].length >= 2) {
+      const rootGuess = remaining.slice(0, Math.min(remaining.length, Math.max(m[0].length + 1, 3)));
+      result.push({ text: rootGuess, type: 'root', tag: 'ROOT' });
+      remaining = remaining.slice(rootGuess.length);
+    } else {
+      result.push({ text: remaining, type: 'root', tag: 'ROOT' });
+      return result;
+    }
+  }
+  
+  // Try suffix (longest match)
+  if (remaining.length > 0) {
+    let bestSuf = '';
+    for (const s of SUFFIXES) {
+      if (remaining.startsWith(s) && s.length > bestSuf.length) bestSuf = s;
+    }
+    if (bestSuf && remaining.length > bestSuf.length) {
+      result.push({ text: bestSuf, type: 'suf', tag: 'SUF' });
+      remaining = remaining.slice(bestSuf.length);
+    }
+  }
+  
+  // Remaining = ending
+  if (remaining.length > 0) {
+    const isEnding = ENDINGS.has(remaining) || remaining.length <= 3;
+    result.push({
+      text: remaining,
+      type: isEnding ? 'end' : 'suf',
+      tag: isEnding ? 'END' : 'SUF'
     });
-  })();
+  }
+  
+  return result;
+}
 
-  // ── Bind events ──
-  $btn.addEventListener('click', doTokenize);
-  $clearBtn.addEventListener('click', doClear);
-  $dlBtn.addEventListener('click', doDownload);
-  $input.addEventListener('keydown', function(e) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') doTokenize();
+function render(tokens) {
+  const output = document.getElementById('output');
+  const text = document.getElementById('input').value;
+  output.innerHTML = '';
+  
+  let nRoot=0, nSuf=0, nEnd=0, nPre=0, nBpe=0, nPunct=0, nNum=0, nSpace=0;
+  
+  tokens.forEach((tok, i) => {
+    const el = document.createElement('span');
+    el.style.animationDelay = `${i * 30}ms`;
+    
+    if (tok.type === 'space') {
+      el.className = 'token t-space';
+      el.title = 'word boundary';
+      nSpace++;
+    } else if (tok.type === 'punct') {
+      el.className = 'token t-PUNCT';
+      el.textContent = tok.text;
+      el.setAttribute('data-meta', tok.text + ' · PUNCT');
+      nPunct++;
+    } else if (tok.type === 'num') {
+      el.className = 'token t-NUM';
+      el.textContent = tok.text;
+      el.setAttribute('data-meta', tok.text + ' · NUM');
+      nNum++;
+    } else {
+      const cssType = (tok.tag || tok.type).toUpperCase();
+      el.className = `token t-${cssType}`;
+      el.textContent = tok.text;
+      el.setAttribute('data-meta', tok.text + ' · ' + (tok.tag || tok.type.toUpperCase()));
+    }
+    
+    if (tok.type === 'root') nRoot++;
+    if (tok.type === 'suf') nSuf++;
+    if (tok.type === 'end') nEnd++;
+    if (tok.type === 'pre') nPre++;
+    if (tok.type === 'bpe') nBpe++;
+    
+    output.appendChild(el);
   });
+  
+  const cyrChars = (text.match(/[а-яёА-ЯЁ]/g) || []).length;
+  const latChars = (text.match(/[a-zA-Z]/g) || []).length;
+  const digChars = (text.match(/\d/g) || []).length;
+  const spaces = (text.match(/\s/g) || []).length;
+  const words = text.split(/\s+/).filter(w => w.length > 0).length;
+  const noSpaceChars = text.length - spaces;
+  const otherChars = text.length - cyrChars - latChars - digChars - spaces;
+  
+  const nMorpheme = nRoot + nSuf + nEnd + nPre;
+  const nAllTokens = nMorpheme + nBpe + nPunct + nNum + nSpace;
+  const coverage = (nMorpheme + nBpe) > 0 ? Math.round(nMorpheme / (nMorpheme + nBpe) * 100) : 0;
+  
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="val" style="color:var(--root)">${nRoot}</div><div class="label">Корни</div></div>
+    <div class="stat"><div class="val" style="color:var(--prefix)">${nPre}</div><div class="label">Приставки</div></div>
+    <div class="stat"><div class="val" style="color:var(--suffix)">${nSuf}</div><div class="label">Суффиксы</div></div>
+    <div class="stat"><div class="val" style="color:var(--ending)">${nEnd}</div><div class="label">Окончания</div></div>
+    <div class="stat"><div class="val" style="color:var(--bpe)">${nBpe}</div><div class="label">BPE</div></div>
+    <div class="stat"><div class="val">${nPunct}</div><div class="label">Знаки</div></div>
+    <div class="stat"><div class="val" style="color:var(--num)">${nNum}</div><div class="label">Цифры</div></div>
+    <div class="stat"><div class="val">${nSpace}</div><div class="label">Пробелы</div></div>
+    <div class="stat"><div class="val">${nAllTokens}</div><div class="label">Всего токенов</div></div>
+    <div class="stat"><div class="val">${coverage}%</div><div class="label">Покрытие</div></div>
+  `;
+  document.getElementById('text-stats').innerHTML = `
+    <div class="stat"><div class="val">${words}</div><div class="label">Слов</div></div>
+    <div class="stat"><div class="val">${text.length}</div><div class="label">Символов</div></div>
+    <div class="stat"><div class="val">${noSpaceChars}</div><div class="label">Без пробелов</div></div>
+    <div class="stat"><div class="val">${cyrChars}</div><div class="label">Кириллица</div></div>
+    <div class="stat"><div class="val">${latChars}</div><div class="label">Латиница</div></div>
+    <div class="stat"><div class="val">${digChars}</div><div class="label">Цифры</div></div>
+    <div class="stat"><div class="val">${spaces}</div><div class="label">Пробелы</div></div>
+    <div class="stat"><div class="val">${otherChars}</div><div class="label">Прочие</div></div>
+  `;
+}
 
-  // ── Auto-run on load ──
-  if ($input.value.trim()) {
-    setTimeout(doTokenize, 200);
-  }
+function setExample(i) {
+  document.getElementById('input').value = EXAMPLES[i];
+  update();
+}
 
-  // Expose for console testing
-  window.tokenize = doTokenize;
+function update() {
+  const text = document.getElementById('input').value;
+  const tokens = tokenize(text);
+  render(tokens);
+}
 
-  console.log('Morpheme Tokenizer UI loaded. Elements: ' + ids.length + '/' + ids.length);
+document.getElementById('input').addEventListener('input', update);
+update();
+
+
+/* ── Theme toggle ── */
+(function initTheme() {
+  var toggle = document.querySelector('[data-theme-toggle]');
+  if (!toggle) return;
+  var root = document.documentElement;
+  var theme = root.getAttribute('data-theme') || 'dark';
+  var sunSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+  var moonSVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  function setIcon() { toggle.innerHTML = (theme === 'dark') ? sunSVG : moonSVG; }
+  setIcon();
+  toggle.addEventListener('click', function() {
+    theme = (theme === 'dark') ? 'light' : 'dark';
+    root.setAttribute('data-theme', theme);
+    setIcon();
+  });
 })();
 </script>
 </body>
