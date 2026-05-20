@@ -1,11 +1,683 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="refresh" content="0; url=https://prestapro.github.io/logos/demo/morpheme-tokenizer.html">
-        <title>Logos Morpheme Tokenizer</title>
-    </head>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logos Morpheme Tokenizer — Interactive Demo</title>
+<meta name="description" content="Root-aware morpheme tokenizer for Russian text. Splits words into semantic morphemes using Tikhonov dictionary with BPE fallback.">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a2e;
+  --border: #2a2a3e;
+  --text: #e4e4ef;
+  --text-dim: #8888aa;
+  --accent: #6c5ce7;
+  --accent-glow: rgba(108, 92, 231, 0.3);
+  --root: #ff6b6b;
+  --root-bg: rgba(255, 107, 107, 0.12);
+  --suffix: #ffd93d;
+  --suffix-bg: rgba(255, 217, 61, 0.12);
+  --ending: #6bcb77;
+  --ending-bg: rgba(107, 203, 119, 0.12);
+  --prefix: #4d96ff;
+  --prefix-bg: rgba(77, 150, 255, 0.12);
+  --bpe: #888;
+  --bpe-bg: rgba(136, 136, 136, 0.1);
+  --punct: #666;
+  --num: #c084fc;
+  --space: rgba(255,255,255,0.03);
+  --radius: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.hero {
+  text-align: center;
+  padding: 60px 24px 40px;
+  position: relative;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 600px; height: 400px;
+  background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero h1 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, #e4e4ef 0%, #6c5ce7 50%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.hero p {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  margin-top: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  position: relative;
+  z-index: 1;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 60px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 24px;
+  transition: border-color 0.3s;
+}
+
+.card:hover { border-color: var(--accent); }
+
+.card h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+textarea {
+  width: 100%;
+  min-height: 100px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+textarea:focus { border-color: var(--accent); }
+
+.examples {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.example-btn {
+  padding: 6px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.example-btn:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+#output {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-height: 48px;
+  padding: 4px 0;
+}
+
+.token {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: default;
+  position: relative;
+  animation: fadeIn 0.3s ease forwards;
+  opacity: 0;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+.token:hover { transform: scale(1.08); z-index: 2; }
+
+.token .tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  margin-right: 4px;
+  opacity: 0.6;
+  text-transform: uppercase;
+}
+
+.t-root { background: var(--root-bg); color: var(--root); border: 1px solid rgba(255,107,107,0.25); }
+.t-suf  { background: var(--suffix-bg); color: var(--suffix); border: 1px solid rgba(255,217,61,0.25); }
+.t-end  { background: var(--ending-bg); color: var(--ending); border: 1px solid rgba(107,203,119,0.25); }
+.t-pre  { background: var(--prefix-bg); color: var(--prefix); border: 1px solid rgba(77,150,255,0.25); }
+.t-bpe  { background: var(--bpe-bg); color: var(--bpe); border: 1px solid rgba(136,136,136,0.15); }
+.t-punct { background: transparent; color: var(--punct); font-size: 1rem; }
+.t-num  { background: rgba(192,132,252,0.1); color: var(--num); border: 1px solid rgba(192,132,252,0.2); }
+.t-space { width: 12px; height: 24px; background: var(--space); border-radius: 3px; border: 1px dashed rgba(255,255,255,0.08); }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.stat {
+  text-align: center;
+  padding: 16px 8px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.stat .val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.stat .label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.pipeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.pipe-step {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  position: relative;
+}
+
+.pipe-step::after {
+  content: '→';
+  position: absolute;
+  right: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 1.2rem;
+}
+
+.pipe-step:last-child::after { display: none; }
+
+.pipe-step .step-num {
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pipe-step h3 {
+  font-size: 0.95rem;
+  margin: 8px 0 4px;
+}
+
+.pipe-step p {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.channels {
+  margin-top: 16px;
+}
+
+.channel {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+
+.channel:hover { border-color: var(--accent); }
+
+.ch-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 24px;
+}
+
+.ch-name { font-size: 0.88rem; font-weight: 500; flex: 1; }
+.ch-desc { font-size: 0.78rem; color: var(--text-dim); flex: 2; }
+.ch-status {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.ch-active { background: rgba(107,203,119,0.15); color: #6bcb77; }
+.ch-init { background: rgba(255,217,61,0.15); color: #ffd93d; }
+
+footer {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
 <body>
-    <p>Redirecting to <a href="https://prestapro.github.io/logos/demo/morpheme-tokenizer.html">Morpheme Tokenizer Demo</a>...</p>
+
+<div class="hero">
+  <h1>Morpheme Tokenizer</h1>
+  <p>Root-aware tokenization for Russian text • 7 semantic channels</p>
+  <div class="badge">Logos Engine • 32,220 vocab • Tikhonov Dictionary</div>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <h2>🔬 Try It</h2>
+    <textarea id="input" placeholder="Введите текст на русском...">Перепрограммировать запрограммированный компьютер непросто</textarea>
+    <div class="examples">
+      <button class="example-btn" onclick="setExample(0)">Нейросети</button>
+      <button class="example-btn" onclick="setExample(1)">Москва</button>
+      <button class="example-btn" onclick="setExample(2)">Python</button>
+      <button class="example-btn" onclick="setExample(3)">Морфология</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📊 Result</h2>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--prefix)"></div>Prefix</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--root)"></div>Root</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--suffix)"></div>Suffix</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--ending)"></div>Ending</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--bpe)"></div>Fallback</div>
+    </div>
+    <div id="output"></div>
+    <h2 style="margin-top:24px">🏷️ Токены</h2>
+    <div class="stats" id="stats"></div>
+    <h2 style="margin-top:24px">📝 Текст</h2>
+    <div class="stats" id="text-stats"></div>
+  </div>
+
+  <div class="card">
+    <h2>⚙️ Tokenization Pipeline</h2>
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="step-num">Step 1</div>
+        <h3>Word Split</h3>
+        <p>Regex tokenization preserving hyphens, punctuation, numbers</p>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num">Step 2</div>
+        <h3>Dictionary</h3>
+        <p>Tikhonov lookup → prefix + root + suffix + ending</p>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num">Step 3</div>
+        <h3>Lemma</h3>
+        <p>pymorphy3 lemmatization + aspect pairs + derivation</p>
+      </div>
+      <div class="pipe-step">
+        <div class="step-num">Step 4</div>
+        <h3>Fallback</h3>
+        <p>Character-level BPE for unknown words and Latin text</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📡 7 Semantic Channels</h2>
+    <div class="channels">
+      <div class="channel"><span class="ch-num">1</span><span class="ch-name">Token ID</span><span class="ch-desc">Morpheme BPE vocabulary (32,220 tokens)</span><span class="ch-status ch-active">ACTIVE</span></div>
+      <div class="channel"><span class="ch-num">2</span><span class="ch-name">Type ID</span><span class="ch-desc">ROOT / SUF / END / PRE / BPE / PUNCT / NUM</span><span class="ch-status ch-active">ACTIVE</span></div>
+      <div class="channel"><span class="ch-num">3</span><span class="ch-name">Position</span><span class="ch-desc">Morpheme position within word (0–15)</span><span class="ch-status ch-active">ACTIVE</span></div>
+      <div class="channel"><span class="ch-num">4</span><span class="ch-name">Word Length</span><span class="ch-desc">Parent word length bucket (0–31)</span><span class="ch-status ch-active">ACTIVE</span></div>
+      <div class="channel"><span class="ch-num">5</span><span class="ch-name">Sem Type</span><span class="ch-desc">pymorphy3 POS → KG semantic type</span><span class="ch-status ch-init">ZERO-INIT</span></div>
+      <div class="channel"><span class="ch-num">6</span><span class="ch-name">Concept</span><span class="ch-desc">Token → KG node via lemma → concept map</span><span class="ch-status ch-init">ZERO-INIT</span></div>
+      <div class="channel"><span class="ch-num">7</span><span class="ch-name">KG Memory</span><span class="ch-desc">Ternary monad ±1 cross-attention with KG</span><span class="ch-status ch-active">ACTIVE</span></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <a href="https://github.com/Prestapro/logos">Logos Engine</a> — Symbolic AI for Russian NLU
+</footer>
+
+<script>
+const EXAMPLES = [
+  "Нейронные сети обучаются методом обратного распространения ошибки",
+  "Москва — столица Российской Федерации и крупнейший город страны",
+  "Программирование на Python является одним из самых популярных направлений",
+  "Перепрограммировать запрограммированный компьютер непросто"
+];
+
+const PREFIXES_RU = [
+  'пере','при','про','под','над','раз','рас','от','об','вы','до',
+  'за','на','по','из','не','у','с','в','о','без','бес','воз','вос',
+  'пред','пре','со'
+];
+
+const ROOTS = new Set([
+  'программ','компьютер','нейрон','сет','обуч','метод','обрат',
+  'распростран','ошибк','москв','столиц','российск','федераци',
+  'крупн','город','стран','python','являет','одн','сам','популярн',
+  'направлен','прост','непрост','ред','пис','чит','работ','дел',
+  'зна','вид','говор','ход','стоя','дум','жив','люб','хоч','мог',
+  'дав','бер','нес','вед','кла','ста','бы','ес','нов','стар',
+  'бел','черн','красн','зелен','голуб','жёлт','сер','бур',
+  'свет','тёмн','ярк','тих','гром','быстр','медленн',
+]);
+
+const SUFFIXES = new Set([
+  'ова','ирова','изирова','ива','ыва','ну','а','я','е','и',
+  'ни','ени','ани','ти','ств','ость','ност','тель','чик','щик',
+  'ник','ист','ор','ер','ант','ент','изм','аци','яци','ур',
+  'альн','ельн','ическ','ическ','еск','ск','н','к','л','ённ',
+  'анн','енн','ованн','ированн','ющ','ящ','вш','ш',
+]);
+
+const ENDINGS = new Set([
+  'а','о','е','и','у','ы','я','ю','ей','ов','ом','ым','ых','их',
+  'ая','ое','ую','ие','ые','ой','ий','ём','ях','ами','ями','ого',
+  'ему','ть','ся','ет','ут','ют','ит','ят','ем','им','ёт',
+]);
+
+function tokenize(text) {
+  const tokens = [];
+  const parts = text.match(/[\wа-яёА-ЯЁ]+(?:-[\wа-яёА-ЯЁ]+)*|[^\wа-яёА-ЯЁ\s]+|\s+/g) || [];
+  
+  for (const part of parts) {
+    if (/^\s+$/.test(part)) {
+      tokens.push({ text: ' ', type: 'space' });
+      continue;
+    }
+    if (/^[^\wа-яёА-ЯЁ]+$/i.test(part)) {
+      for (const c of part) tokens.push({ text: c, type: 'punct' });
+      continue;
+    }
+    if (/^\d+$/.test(part)) {
+      for (const d of part) tokens.push({ text: d, type: 'num', tag: 'NUM' });
+      continue;
+    }
+    // Mixed alphanumeric (300M, K8s, v3, 10кг)
+    if (/\d/.test(part) && /[a-zA-Zа-яёА-ЯЁ]/.test(part)) {
+      const subparts = part.match(/\d+|[a-zA-Zа-яёА-ЯЁ]+/g) || [];
+      for (const sp of subparts) {
+        if (/^\d+$/.test(sp)) {
+          for (const d of sp) tokens.push({ text: d, type: 'num', tag: 'NUM' });
+        } else if (/^[a-zA-Z]+$/.test(sp)) {
+          tokens.push({ text: sp, type: 'bpe', tag: 'BPE' });
+        } else {
+          const morphemes = decomposeWord(sp.toLowerCase());
+          tokens.push(...morphemes);
+        }
+      }
+      continue;
+    }
+    if (/^[a-zA-Z]/.test(part)) {
+      tokens.push({ text: part, type: 'bpe', tag: 'BPE' });
+      continue;
+    }
+    
+    const word = part.toLowerCase();
+    const morphemes = decomposeWord(word);
+    tokens.push(...morphemes);
+  }
+  return tokens;
+}
+
+function decomposeWord(word) {
+  const result = [];
+  let remaining = word;
+  
+  // Try prefix
+  for (const pre of PREFIXES_RU) {
+    if (remaining.startsWith(pre) && remaining.length > pre.length + 2) {
+      const rest = remaining.slice(pre.length);
+      // Check if rest starts with a known root
+      let hasRoot = false;
+      for (const r of ROOTS) {
+        if (rest.startsWith(r)) { hasRoot = true; break; }
+      }
+      if (hasRoot) {
+        result.push({ text: pre, type: 'pre', tag: 'PRE' });
+        remaining = rest;
+        break;
+      }
+    }
+  }
+  
+  // Try root (longest match)
+  let bestRoot = '';
+  for (const r of ROOTS) {
+    if (remaining.startsWith(r) && r.length > bestRoot.length) bestRoot = r;
+  }
+  
+  if (bestRoot) {
+    result.push({ text: bestRoot, type: 'root', tag: 'ROOT' });
+    remaining = remaining.slice(bestRoot.length);
+  } else {
+    // No root found — try splitting heuristically
+    // Take consonant cluster + first vowel as root
+    const m = remaining.match(/^[а-яё]*?[аеёиоуыэюя]/);
+    if (m && m[0].length >= 2) {
+      const rootGuess = remaining.slice(0, Math.min(remaining.length, Math.max(m[0].length + 1, 3)));
+      result.push({ text: rootGuess, type: 'root', tag: 'ROOT' });
+      remaining = remaining.slice(rootGuess.length);
+    } else {
+      result.push({ text: remaining, type: 'root', tag: 'ROOT' });
+      return result;
+    }
+  }
+  
+  // Try suffix (longest match)
+  if (remaining.length > 0) {
+    let bestSuf = '';
+    for (const s of SUFFIXES) {
+      if (remaining.startsWith(s) && s.length > bestSuf.length) bestSuf = s;
+    }
+    if (bestSuf && remaining.length > bestSuf.length) {
+      result.push({ text: bestSuf, type: 'suf', tag: 'SUF' });
+      remaining = remaining.slice(bestSuf.length);
+    }
+  }
+  
+  // Remaining = ending
+  if (remaining.length > 0) {
+    const isEnding = ENDINGS.has(remaining) || remaining.length <= 3;
+    result.push({
+      text: remaining,
+      type: isEnding ? 'end' : 'suf',
+      tag: isEnding ? 'END' : 'SUF'
+    });
+  }
+  
+  return result;
+}
+
+function render(tokens) {
+  const output = document.getElementById('output');
+  const text = document.getElementById('input').value;
+  output.innerHTML = '';
+  
+  let nRoot=0, nSuf=0, nEnd=0, nPre=0, nBpe=0, nPunct=0, nNum=0, nSpace=0;
+  
+  tokens.forEach((tok, i) => {
+    const el = document.createElement('span');
+    el.style.animationDelay = `${i * 30}ms`;
+    
+    if (tok.type === 'space') {
+      el.className = 'token t-space';
+      el.title = 'word boundary';
+      nSpace++;
+    } else if (tok.type === 'punct') {
+      el.className = 'token t-punct';
+      el.textContent = tok.text;
+      nPunct++;
+    } else if (tok.type === 'num') {
+      el.className = 'token t-num';
+      const tag = document.createElement('span');
+      tag.className = 'tag'; tag.textContent = 'NUM';
+      el.appendChild(tag);
+      el.appendChild(document.createTextNode(tok.text));
+      nNum++;
+    } else {
+      el.className = `token t-${tok.type}`;
+      if (tok.tag) {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = tok.tag;
+        el.appendChild(tag);
+      }
+      el.appendChild(document.createTextNode(tok.text));
+    }
+    
+    if (tok.type === 'root') nRoot++;
+    if (tok.type === 'suf') nSuf++;
+    if (tok.type === 'end') nEnd++;
+    if (tok.type === 'pre') nPre++;
+    if (tok.type === 'bpe') nBpe++;
+    
+    output.appendChild(el);
+  });
+  
+  const cyrChars = (text.match(/[а-яёА-ЯЁ]/g) || []).length;
+  const latChars = (text.match(/[a-zA-Z]/g) || []).length;
+  const digChars = (text.match(/\d/g) || []).length;
+  const spaces = (text.match(/\s/g) || []).length;
+  const words = text.split(/\s+/).filter(w => w.length > 0).length;
+  const noSpaceChars = text.length - spaces;
+  const otherChars = text.length - cyrChars - latChars - digChars - spaces;
+  
+  const nMorpheme = nRoot + nSuf + nEnd + nPre;
+  const nAllTokens = nMorpheme + nBpe + nPunct + nNum + nSpace;
+  const coverage = (nMorpheme + nBpe) > 0 ? Math.round(nMorpheme / (nMorpheme + nBpe) * 100) : 0;
+  
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="val" style="color:var(--root)">${nRoot}</div><div class="label">Корни</div></div>
+    <div class="stat"><div class="val" style="color:var(--prefix)">${nPre}</div><div class="label">Приставки</div></div>
+    <div class="stat"><div class="val" style="color:var(--suffix)">${nSuf}</div><div class="label">Суффиксы</div></div>
+    <div class="stat"><div class="val" style="color:var(--ending)">${nEnd}</div><div class="label">Окончания</div></div>
+    <div class="stat"><div class="val" style="color:var(--bpe)">${nBpe}</div><div class="label">BPE</div></div>
+    <div class="stat"><div class="val">${nPunct}</div><div class="label">Знаки</div></div>
+    <div class="stat"><div class="val" style="color:var(--num)">${nNum}</div><div class="label">Цифры</div></div>
+    <div class="stat"><div class="val">${nSpace}</div><div class="label">Пробелы</div></div>
+    <div class="stat"><div class="val">${nAllTokens}</div><div class="label">Всего токенов</div></div>
+    <div class="stat"><div class="val">${coverage}%</div><div class="label">Покрытие</div></div>
+  `;
+  document.getElementById('text-stats').innerHTML = `
+    <div class="stat"><div class="val">${words}</div><div class="label">Слов</div></div>
+    <div class="stat"><div class="val">${text.length}</div><div class="label">Символов</div></div>
+    <div class="stat"><div class="val">${noSpaceChars}</div><div class="label">Без пробелов</div></div>
+    <div class="stat"><div class="val">${cyrChars}</div><div class="label">Кириллица</div></div>
+    <div class="stat"><div class="val">${latChars}</div><div class="label">Латиница</div></div>
+    <div class="stat"><div class="val">${digChars}</div><div class="label">Цифры</div></div>
+    <div class="stat"><div class="val">${spaces}</div><div class="label">Пробелы</div></div>
+    <div class="stat"><div class="val">${otherChars}</div><div class="label">Прочие</div></div>
+  `;
+}
+
+function setExample(i) {
+  document.getElementById('input').value = EXAMPLES[i];
+  update();
+}
+
+function update() {
+  const text = document.getElementById('input').value;
+  const tokens = tokenize(text);
+  render(tokens);
+}
+
+document.getElementById('input').addEventListener('input', update);
+update();
+</script>
 </body>
 </html>
