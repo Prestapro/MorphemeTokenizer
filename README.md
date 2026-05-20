@@ -207,6 +207,57 @@ Without pymorphy3, only exact dictionary match works (level 1).
 └── README.md
 ```
 
+## Training experiments (300M model)
+
+We ran a series of experiments to find what training signals work best with morpheme tokens. Key finding: **morphemes already encode grammar implicitly — adding explicit grammar signals is redundant, but contrastive signals help.**
+
+### Results
+
+| # | Experiment | Idea | Impact | Verdict |
+|---|---|---|---|---|
+| A | POS tags in tokens | Add `POS:NOUN` after each word | **−29%** slower convergence | ❌ Redundant |
+| B | Grammar auxiliary loss | Predict gender/number/POS from hidden state | **−25%** capacity competition | ❌ Harmful |
+| C | **Sentence coherence** | Binary: is sentence clean or corrupted? | **+22%** on 500 sentences | ✅ Integrated |
+| D | **Token error (ELECTRA-style)** | Which token was replaced? | **+20%** on 500 sentences | ✅ Promising |
+
+### Why POS tags hurt
+
+Morpheme suffixes **already encode** POS information:
+
+```
+S:ист  → always noun (profession)
+S:ова  → always verb (process)
+S:н    → always adjective
+E:ть   → always infinitive
+E:ые   → always plural adjective/noun
+```
+
+Adding explicit `POS:NOUN` tokens is telling the model what it already knows from `S:ист` — it doubles the sequence length for zero information gain.
+
+### Why sentence coherence helps
+
+Contrastive signal (clean vs corrupted sentence) gives the model information that morpheme tokens **don't** encode — structural coherence across word boundaries:
+
+```python
+# 50% of batches are corrupted (segment swap)
+# Model learns: "does this sequence make sense as a whole?"
+coherence_head = nn.Linear(d_model, 2)  # binary classifier on [BOS] token
+lambda_coherence = 0.3
+```
+
+This is complementary to morpheme structure — morphemes encode word-internal structure, coherence loss encodes inter-word relationships.
+
+### Recommended training recipe
+
+```python
+# 1. Tokenize with morphemes (one-time)
+tok = MorphemeTokenizer.from_tikhonov("data/tikhonov_morphemes.json", char_fallback=True)
+ids = tok.encode(text)  # → [BOS, R:программ, S:ир, S:ова, S:ни, E:е, EOS]
+
+# 2. Train with coherence loss (continuous)
+loss = cross_entropy(logits, targets) + 0.3 * coherence_loss(hidden, is_corrupted)
+```
+
 ## Part of Logos
 
 This tokenizer is a component of [Logos](https://github.com/Prestapro/logos) — a symbolic AI engine for Russian NLU. In the training pipeline, morpheme tokens feed a 7-channel semantic encoder where each token carries: token ID, type ID, position, word length, semantic type, concept ID, and KG memory signal.
